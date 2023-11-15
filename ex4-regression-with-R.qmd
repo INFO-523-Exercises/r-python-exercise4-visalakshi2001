@@ -25,7 +25,7 @@ pacman::p_load(tidymodels,
 theme_set(theme_bw() + theme(legend.position = "top"))
 ```
 
- 1. To provide examples of using different regression methods from the tidymodels package.
+1\. To provide examples of using different regression methods from the tidymodels package.
 
 2\. To demonstrate the problem of model overfitting due to correlated attributes in the data.
 
@@ -61,8 +61,6 @@ ggplot() +
 ```
 
 ## **Multiple Linear Regression**
-
-**Python scikitlearn?**
 
 Given the input dataset, the following steps are performed:
 
