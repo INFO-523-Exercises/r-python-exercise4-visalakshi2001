@@ -6,6 +6,12 @@ editor: visual
 toc: true
 ---
 
+::: callout-note
+## Introduction
+
+We will be performing different regression techniques, and exploring Hyperparameter tuning for Ridge and Lasso algorithms.
+:::
+
 ## Package Installation
 
 ```{r install-pckg, message=FALSE, warning=FALSE}
@@ -19,28 +25,23 @@ pacman::p_load(tidymodels,
                ranger,
                randomForest,
                glmnet,
-               gridExtra)
+               gridExtra,
+               ggplot2)
 
 # Global ggplot theme
 theme_set(theme_bw() + theme(legend.position = "top"))
+
+knitr::opts_chunk$set(message = FALSE, warning = FALSE)
 ```
-
-1\. To provide examples of using different regression methods from the tidymodels package.
-
-2\. To demonstrate the problem of model overfitting due to correlated attributes in the data.
-
-3\. To illustrate how regularization can be used to avoid model overfitting.
 
 ## **Synthetic Data Generation**
 
-generate a random 1-dimensional vector of predictor variables, x, from a uniform distribution
-
-y = -3x + 1 + epsilon
+We generate a random sample of 200 instances here. Then we pick a linear function and generate another set of random sample around that function. For our case, it will be `4x + 3`.
 
 ```{r gen-data}
 
 # Parameters
-seed <- 1            # seed for random number generation 
+seed <- 331         # seed for random number generation 
 numInstances <- 200  # number of data instances
 
 # Set seed
@@ -48,41 +49,31 @@ set.seed(seed)
 
 # Generate data
 X <- matrix(runif(numInstances), ncol=1)
-y_true <- -3*X + 1 
+y_true <- 4*X + 3
 y <- y_true + matrix(rnorm(numInstances), ncol=1)
 
 # Plot
 ggplot() +
   geom_point(aes(x=X, y=y), color="black") +
   geom_line(aes(x=X, y=y_true), color="blue", linewidth=1) +
-  ggtitle('True function: y = -3X + 1') +
+  ggtitle('True function: y = 4X + 3') +
   xlab('X') +
   ylab('y')
 ```
 
 ## **Multiple Linear Regression**
 
-Given the input dataset, the following steps are performed:
-
-1\. Split the input data into their respective training and test sets.
-
-2\. Fit multiple linear regression to the training data.
-
-3\. Apply the model to the test data.
-
-4\. Evaluate the performance of the model.
-
-5\. Postprocessing: Visualizing the fitted model.
-
 ### Step 1: Split Input Data into Training and Test Sets
+
+Taking 40 instances to training data, and rest into testing.
 
 ```{r split-data}
 
 # Train/test split
-numTrain <- 20   # number of training instances
+numTrain <- 40   # number of training instances
 numTest <- numInstances - numTrain
 
-set.seed(123) # For reproducibility
+set.seed(222) # For reproducibility
 
 data <- tibble(X = X, y = y)
 
@@ -101,6 +92,8 @@ y_test <- test_data$y
 ```
 
 ### Step 2: Fit Regression Model to Training Set
+
+The following cells are just simple linear regression.
 
 ```{r fit-mod}
 
@@ -123,6 +116,8 @@ y_pred_test <- predict(lin_reg_fit, new_data = test_data) |>
 ```
 
 ### Step 4: Evaluate Model Performance on Test Set
+
+We can see an evident linear relation in the data points. Yet, it is spread around the plane too much.
 
 ```{r plot-and-eval}
 
@@ -152,7 +147,10 @@ cat("Root mean squared error =", sprintf("%.4f", rmse_value$.estimate), "\n")
 ```{r metrics2}
 
 cat('R-squared =', sprintf("%.4f", r2_value$.estimate), "\n")
+
 ```
+
+Our RMSE value is 1.09 and r2 score is 0.56. It could have been better given the simplicity of the dataset. It feels like we took too little of instances to train.
 
 ### Step 5: Postprocessing
 
@@ -184,53 +182,47 @@ ggplot() +
   ylab('y')
 ```
 
+As anticipated from the r2 score, the fit is decent, with a major spread around the slope line.
+
 ## **Effect of Correlated Attributes**
 
-how the presence of correlated attributes can affect the performance of regression models. Specifically, we create 4 additional variables, X2, X3, X4, and X5 that are strongly correlated with the previous variable X
-
-The relationship between X and y remains the same as before. We then fit y against the predictor variables and compare their training and test set errors.
+Now we examine the effect of collinearity on the predictions. We generate another set of 4 features, each correlated to one another.
 
 ```{r gen-data-corr}
 
 # Generate the variables
 set.seed(1)
-X2 <- 0.5 * X + rnorm(numInstances, mean=0, sd=0.04)
-X3 <- 0.5 * X2 + rnorm(numInstances, mean=0, sd=0.01)
-X4 <- 0.5 * X3 + rnorm(numInstances, mean=0, sd=0.01)
-X5 <- 0.5 * X4 + rnorm(numInstances, mean=0, sd=0.01)
+X2 <- 0.3 * X + rnorm(numInstances, mean=0, sd=0.04)
+X3 <- 0.3 * X2 + rnorm(numInstances, mean=0, sd=0.01)
+X4 <- 0.3 * X3 + rnorm(numInstances, mean=0, sd=0.02)
+X5 <- 0.3 * X4 + rnorm(numInstances, mean=0, sd=0.05)
 
 # Create plots
 plot1 <- ggplot() +
   geom_point(aes(X, X2), color='black') +
   xlab('X') + ylab('X2') +
-  ggtitle(sprintf("Correlation between X and X2 = %.4f", cor(X[-c((numInstances-numTest+1):numInstances)], X2[-c((numInstances-numTest+1):numInstances)])))
+  ggtitle(sprintf("X and X2 = %.4f", cor(X[-c((numInstances-numTest+1):numInstances)], X2[-c((numInstances-numTest+1):numInstances)])))
 
 plot2 <- ggplot() +
   geom_point(aes(X2, X3), color='black') +
   xlab('X2') + ylab('X3') +
-  ggtitle(sprintf("Correlation between X2 and X3 = %.4f", cor(X2[-c((numInstances-numTest+1):numInstances)], X3[-c((numInstances-numTest+1):numInstances)])))
+  ggtitle(sprintf("X2 and X3 = %.4f", cor(X2[-c((numInstances-numTest+1):numInstances)], X3[-c((numInstances-numTest+1):numInstances)])))
 
 plot3 <- ggplot() +
   geom_point(aes(X3, X4), color='black') +
   xlab('X3') + ylab('X4') +
-  ggtitle(sprintf("Correlation between X3 and X4 = %.4f", cor(X3[-c((numInstances-numTest+1):numInstances)], X4[-c((numInstances-numTest+1):numInstances)])))
+  ggtitle(sprintf("X3 and X4 = %.4f", cor(X3[-c((numInstances-numTest+1):numInstances)], X4[-c((numInstances-numTest+1):numInstances)])))
 
 plot4 <- ggplot() +
   geom_point(aes(X4, X5), color='black') +
   xlab('X4') + ylab('X5') +
-  ggtitle(sprintf("Correlation between X4 and X5 = %.4f", cor(X4[-c((numInstances-numTest+1):numInstances)], X5[-c((numInstances-numTest+1):numInstances)])))
+  ggtitle(sprintf("X4 and X5 = %.4f", cor(X4[-c((numInstances-numTest+1):numInstances)], X5[-c((numInstances-numTest+1):numInstances)])))
 
 # Combine plots into a 2x2 grid
 grid.arrange(plot1, plot2, plot3, plot4, ncol=2)
 ```
 
-Next, we create 4 additional versions of the training and test sets.
-
-The first version, X_train2 and X_test2 have 2 correlated predictor variables, X and X2.
-
-The second version, X_train3 and X_test3 have 3 correlated predictor variables, X, X2, and X3.
-
-The third version have 4 correlated variables, X, X2, X3, and X4 whereas the last version have 5 correlated variables, X, X2, X3, X4, and X5.
+The correlation values are: 0.93, 0.93, 0.69, 0.25 respectively. Now we will further concatenate these datasets into different train set and build a model on each set to compare the coefficients and fits
 
 ```{r split-data-corr}
 
@@ -252,7 +244,7 @@ X_train5 <- cbind(X[train_indices], X2[train_indices], X3[train_indices], X4[tra
 X_test5 <- cbind(X[test_indices], X2[test_indices], X3[test_indices], X4[test_indices], X5[test_indices])
 ```
 
- we train 4 new regression models 
+Training Regression models.
 
 ```{r train-model}
 
@@ -307,7 +299,7 @@ y_pred_train5 <- predict(regr5_fit, new_data = new_train_data5)
 y_pred_test5 <- predict(regr5_fit, new_data = new_test_data5)
 ```
 
-For postprocessing, we compute both the training and test errors of the models. We can also show the resulting model and the sum of the absolute weights of the regression coefficients
+For postprocessing, we compute both the training and test errors of the models. Below will be te insits on the same.
 
 ```{r postprocess-corr}
 
@@ -358,15 +350,11 @@ ggplot(results, aes(x = Sum_of_Absolute_Weights)) +
 results
 ```
 
-Results here
+After training on the 4th set, the training error decreased and testing error started increasing, which indicates overfitting. The Error values are high in each case, also the precision of the coefficients have drastically changed. This means that the resultant target variable prediction will not get significant impact, however the statistical inference of the model becomes void due to collinearity of the variables.
 
 ## **Ridge Regression**
 
-Ridge regression is a variant of MLR designed to fit a linear model
-
-we fit a ridge regression model to the previously created training set with correlated attributes.
-
-We compare the results of the ridge regression model against those obtained using MLR.
+Ridge regression is a variant of MLR designed to fit a linear model, that helps in dealing with overfit during training.
 
 ```{r train-ridge}
 
@@ -417,15 +405,11 @@ final_results <- bind_rows(results, values6)
 final_results
 ```
 
-By setting an appropriate value for the hyperparameter, we can control the sum of absolute weights, thus producing a test error that is quite comparable to that of MLR without the correlated attributes.
+In this case, the complexity of our Ridge algorithm as rendered poorer results in the dataset. The sum of absolute weights has exploded.
 
 ## **Lasso Regression**
 
-One of the limitations of ridge regression is that, although it was able to reduce the regression coefficients associated with the correlated attributes and reduce the effect of model overfitting, the resulting model is still not sparse. 
-
-Another variation of MLR, called lasso regression, is designed to produce sparser models.
-
-We now will see the results of applying lasso regression to the previously used correlated dataset.
+We will try and build a sparse model using lasso regression now.
 
 ```{r train-lasso}
 
@@ -468,15 +452,11 @@ lasso_results <- tibble(Model = "Lasso",
 lasso_results
 ```
 
-Observe that the lasso regression model sets the coefficients for the correlated attributes, X2, X3, X4, and X5 to exactly zero unlike the ridge regression model. As a result, its test error is significantly better than that for ridge regression.
+Even though the test error is better, the equation sets the coefficients to zero. This created yet another case of poor fit.
 
 ## **Hyperparameter Selection via Cross-Validation**
 
-While both ridge and lasso regression methods can potentially alleviate the model overfitting problem, one of the challenges is how to select the appropriate hyperparameter value.
-
-using a 5-fold cross-validation method to select the best hyperparameter of the model
-
-Using the `RidgeCV()` function, we can train a model with 5-fold cross-validation and select the best hyperparameter value.
+Trying out yperparameter tuning to tackle underfit.
 
 ```{r hyp-param}
 
@@ -554,7 +534,7 @@ all_results
 
 ```
 
-how to apply cross-validation to select the best hyperparameter value for fitting a lasso regression model.
+We can see that the test error of tuned model is less for `RideCV()`.
 
 ```{r cross-val, warning=FALSE}
 
@@ -630,7 +610,11 @@ lasso_results <- tibble(Model = "LassoCV",
 cat("Selected alpha for Lasso =", best_params_lasso$penalty, "\n")
 ```
 
+Alpha value selected as `0.15`. When alpha = 1, it corresponds to Lasso regression (pure L1 regularization). When alpha = 0, it corresponds to Ridge regression (pure L2 regularization). Here we are giving more weight to the L2 regularization component compared to L1, but still allowing for some sparsity in the model.
+
 ```{r print-result3}
 
 lasso_results
 ```
+
+There isn't much significant improvement for `LassoCV()` compared to the improvement in ridge. Since the dataset was extremely simple and the true relationship is sparse (only a few predictors truly contribute to the response), Lasso performed well on it.
